@@ -1,0 +1,5 @@
+# Everything here runs in Linux containers / on Linux servers: keep LF endings
+# even on Windows checkouts (CRLF breaks shell scripts and entrypoints).
+* text=auto eol=lf
+*.png binary
+*.jpg binary

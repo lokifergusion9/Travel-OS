@@ -1,0 +1,67 @@
+name: Deploy
+
+# Build images, push to ECR, run migrations, and roll out ECS services.
+#
+# MANUAL trigger only — run it from the Actions tab once AWS is provisioned
+# (Terraform applied) and the repo is configured. Add the `push: main` trigger
+# back here when you want every merge to auto-deploy.
+#
+# Requires repo configuration:
+#   Variables: AWS_REGION, ECR_BACKEND, ECR_FRONTEND, ECS_CLUSTER,
+#              ECS_WEB_SERVICE, ECS_WORKER_SERVICE, PUBLIC_API_URL,
+#              PRIVATE_SUBNETS, APP_SG
+#   Secrets:   AWS_ROLE_ARN  (OIDC role with ECR/ECS permissions)
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push backend
+        env:
+          REG: ${{ steps.ecr.outputs.registry }}
+        run: |
+          docker build -f backend/Dockerfile.prod -t "$REG/${{ vars.ECR_BACKEND }}:${{ github.sha }}" -t "$REG/${{ vars.ECR_BACKEND }}:latest" ./backend
+          docker push "$REG/${{ vars.ECR_BACKEND }}:${{ github.sha }}"
+          docker push "$REG/${{ vars.ECR_BACKEND }}:latest"
+
+      - name: Build & push frontend
+        env:
+          REG: ${{ steps.ecr.outputs.registry }}
+        run: |
+          docker build -f frontend/Dockerfile.prod \
+            --build-arg VITE_API_BASE_URL=${{ vars.PUBLIC_API_URL }} \
+            -t "$REG/${{ vars.ECR_FRONTEND }}:${{ github.sha }}" -t "$REG/${{ vars.ECR_FRONTEND }}:latest" ./frontend
+          docker push "$REG/${{ vars.ECR_FRONTEND }}:${{ github.sha }}"
+          docker push "$REG/${{ vars.ECR_FRONTEND }}:latest"
+
+      - name: Run DB migrations (one-off ECS task)
+        run: |
+          aws ecs run-task \
+            --cluster ${{ vars.ECS_CLUSTER }} \
+            --task-definition travelos-migrate \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ vars.PRIVATE_SUBNETS }}],securityGroups=[${{ vars.APP_SG }}],assignPublicIp=DISABLED}" \
+            || echo "Configure the travelos-migrate task definition (see infra/)."
+
+      - name: Roll out services
+        run: |
+          aws ecs update-service --cluster ${{ vars.ECS_CLUSTER }} --service ${{ vars.ECS_WEB_SERVICE }} --force-new-deployment
+          aws ecs update-service --cluster ${{ vars.ECS_CLUSTER }} --service ${{ vars.ECS_WORKER_SERVICE }} --force-new-deployment

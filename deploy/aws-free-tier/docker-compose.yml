@@ -1,0 +1,70 @@
+# One-box deploy for a free-tier EC2 instance (~1 GB RAM). Everything on a
+# single Docker network; only nginx (port 80) is exposed. The web service runs
+# ONE Gunicorn worker with the scheduler in-process (RUN_SCHEDULER=true) to fit
+# the memory budget — no separate worker container.
+#
+#   docker compose up -d --build
+#
+# Needs a .env in this folder (copy .env.example, fill the two secrets).
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-travelos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-travelos}
+      POSTGRES_DB: ${POSTGRES_DB:-travelos}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../../infra/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-travelos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile.prod
+    image: travelos-backend:demo
+    env_file: .env
+    environment:
+      ENVIRONMENT: production
+      RUN_SCHEDULER: "true"
+      TRUST_PROXY: "true"   # client IP comes from nginx's X-Forwarded-For (rate limits)
+      DATABASE_URL: postgresql+asyncpg://travelos_app:travelos_app@db:5432/${POSTGRES_DB:-travelos}
+      REDIS_URL: redis://redis:6379/0
+    command: sh -c "alembic upgrade head && gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 1 -b 0.0.0.0:8000 --timeout 120 --access-logfile -"
+    volumes:
+      - web-storage:/app/storage
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: ""   # empty -> SPA calls /api on the same origin
+    image: travelos-frontend:demo
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${DEMO_HTTP_PORT:-80}:80"
+    depends_on:
+      - web
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  web-storage:

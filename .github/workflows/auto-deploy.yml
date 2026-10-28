@@ -1,0 +1,43 @@
+name: Auto Deploy (demo box)
+
+# Runs on the self-hosted runner installed on the EC2 demo box, so no inbound
+# ports are opened. On push to main it syncs the repo into ~/TravelOS and
+# rebuilds. The box's .env (secrets + Gemini key) is excluded, so it survives.
+#
+# Manual-only until a self-hosted runner is registered for this repo —
+# otherwise every push leaves a job queued forever. Once the runner is up,
+# restore the trigger:
+#   push:
+#     branches: ["main"]
+#     paths-ignore: ["**.md", "docs/**", "infra/**"]
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: demo-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync code + rebuild
+        run: |
+          # No --delete: never remove the box's .env / storage.
+          rsync -a \
+            --exclude '.git' --exclude 'node_modules' --exclude 'dist' --exclude '.venv' \
+            --exclude '__pycache__' --exclude '*.pyc' --exclude 'deploy/aws-free-tier/.env' \
+            --exclude 'backend/storage' \
+            ./ /home/ec2-user/TravelOS/
+          cd /home/ec2-user/TravelOS/deploy/aws-free-tier
+          sudo docker compose up -d --build
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 40); do
+            curl -sf http://localhost/health >/dev/null && { echo "✓ live"; exit 0; }
+            sleep 10
+          done
+          echo "health check timed out"; exit 1

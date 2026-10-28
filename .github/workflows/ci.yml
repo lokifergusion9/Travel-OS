@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: travelos
+          POSTGRES_PASSWORD: travelos
+          POSTGRES_DB: travelos
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U travelos"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgresql+asyncpg://travelos_app:travelos_app@localhost:5432/travelos
+      STORAGE_DIR: /tmp/travelos-storage
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install deps
+        run: pip install -r requirements-dev.txt
+      - name: Bootstrap app role + pgvector (init.sql)
+        env:
+          PGPASSWORD: travelos
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          psql -h localhost -U travelos -d travelos -f ../infra/db/init.sql
+      - name: Migrate
+        run: alembic upgrade head
+      - name: Test
+        run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

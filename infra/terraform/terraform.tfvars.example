@@ -1,0 +1,10 @@
+# Copy to terraform.tfvars and fill in. Never commit real secrets.
+region  = "ap-south-1"
+project = "travelos"
+
+db_password                = "REPLACE_WITH_STRONG_PASSWORD"
+app_secret_key             = "REPLACE_WITH_LONG_RANDOM_STRING"
+credentials_encryption_key = "REPLACE_WITH_FERNET_KEY"   # python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"
+
+cors_origins  = "https://app.yourdomain.com"
+# backend_image left empty -> uses <ecr>/travelos-backend:latest

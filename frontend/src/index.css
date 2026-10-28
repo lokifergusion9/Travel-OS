@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0b1020;
+  --color-ocean-50: #eef6ff;
+  --color-ocean-100: #d9ecff;
+  --color-ocean-400: #4aa3ff;
+  --color-ocean-500: #1f7aed;
+  --color-ocean-600: #155fc0;
+  --color-sunset-400: #ff8a4c;
+  --color-sunset-500: #ff6b35;
+  --color-teal-400: #2dd4bf;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: #f7f9fc;
+}
+
+/* Reusable aurora / gradient background for hero + onboarding */
+.aurora {
+  background:
+    radial-gradient(60rem 60rem at 10% -10%, rgba(45, 212, 191, 0.18), transparent 60%),
+    radial-gradient(50rem 50rem at 90% 0%, rgba(255, 107, 53, 0.16), transparent 55%),
+    radial-gradient(70rem 70rem at 50% 120%, rgba(31, 122, 237, 0.18), transparent 60%),
+    #0b1020;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(16px);
+}
+
+.gradient-text {
+  background: linear-gradient(90deg, #2dd4bf, #4aa3ff, #ff8a4c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(31, 122, 237, 0.3);
+  border-radius: 999px;
+}

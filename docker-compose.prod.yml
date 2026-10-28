@@ -1,0 +1,79 @@
+# Production-shaped stack: built images, Gunicorn web, a dedicated scheduler
+# worker, nginx-served frontend. Requires a populated .env with ENVIRONMENT=
+# production, SECRET_KEY and CREDENTIALS_ENCRYPTION_KEY set.
+#
+#   docker compose -f docker-compose.prod.yml up --build
+#
+# In real AWS, db/redis become RDS/ElastiCache and storage becomes S3 (see infra/).
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-travelos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-travelos}
+      POSTGRES_DB: ${POSTGRES_DB:-travelos}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-travelos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    image: travelos-backend:prod
+    env_file: .env
+    environment:
+      ENVIRONMENT: production
+      RUN_SCHEDULER: "false"   # scheduler runs in the worker service
+      DATABASE_URL: postgresql+asyncpg://travelos_app:travelos_app@db:5432/${POSTGRES_DB:-travelos}
+      REDIS_URL: redis://redis:6379/0
+    command: sh -c "alembic upgrade head && gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 4 -b 0.0.0.0:8000 --access-logfile - --timeout 120"
+    ports:
+      - "${BACKEND_HOST_PORT:-8000}:8000"
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  worker:
+    image: travelos-backend:prod
+    env_file: .env
+    environment:
+      ENVIRONMENT: production
+      RUN_SCHEDULER: "true"
+      DATABASE_URL: postgresql+asyncpg://travelos_app:travelos_app@db:5432/${POSTGRES_DB:-travelos}
+      REDIS_URL: redis://redis:6379/0
+    command: python -m app.workers.run
+    depends_on:
+      web: { condition: service_started }
+      db: { condition: service_healthy }
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+    image: travelos-frontend:prod
+    ports:
+      - "${FRONTEND_HOST_PORT:-8080}:80"
+    depends_on:
+      - web
+
+volumes:
+  postgres-data:
+  redis-data:
