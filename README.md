@@ -8,7 +8,7 @@
 
 **One workspace where AI agents draft itineraries, marketing creatives, vendor deals and lead follow-ups, and a human approves every step before anything goes out.**
 
-[![CI](https://img.shields.io/github/actions/workflow/status/lokifergusion9/TravelOS/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI)](https://github.com/lokifergusion9/TravelOS/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/lokifergusion9/Travel-OS/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI)](https://github.com/lokifergusion9/Travel-OS/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/badge/tests-24_backend_·_5_frontend-8B5CF6?style=for-the-badge)
 ![Runs keyless](https://img.shields.io/badge/runs-keyless_in_dev-FF6B35?style=for-the-badge)
 
@@ -226,8 +226,8 @@ CloudFront), and GitHub Actions CI.
 **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/). Nothing else.
 
 ```bash
-git clone https://github.com/lokifergusion9/TravelOS.git
-cd TravelOS
+git clone https://github.com/lokifergusion9/Travel-OS.git
+cd Travel-OS
 cp .env.example .env        # optional: sensible defaults without it
 docker compose up --build   # database migrations run automatically
 ```

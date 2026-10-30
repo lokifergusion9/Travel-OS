@@ -52,7 +52,7 @@ ssh -i ~/Downloads/travelos-key.pem ec2-user@<PUBLIC_IP>
 ## 6. Install Docker + swap
 ```bash
 sudo dnf -y install git
-git clone https://<YOUR_GH_USERNAME>:<YOUR_PAT>@github.com/lokifergusion9/TravelOS.git TravelOS
+git clone https://<YOUR_GH_USERNAME>:<YOUR_PAT>@github.com/lokifergusion9/Travel-OS.git TravelOS
 cd TravelOS
 bash deploy/aws-free-tier/bootstrap.sh
 # bootstrap installs Docker + Compose and adds 4 GB swap (needed on 1 GB RAM)
